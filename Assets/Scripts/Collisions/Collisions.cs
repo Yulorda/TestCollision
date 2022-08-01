@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEditor.Rendering;
 
 using UnityEngine;
+using UnityEngine.Diagnostics;
 
 public static class Collisions
 {
@@ -78,12 +79,12 @@ public static class Collisions
 
     public static bool CircleToRectangle(Vector2 center, float radius, Vector2 rectangleMin, Vector2 rectangleMax)
     {
-        return PointToCircle(GetNearstToReactangle(center, rectangleMin, rectangleMax), center, radius);
+        return PointToCircle(Utills.GetNearstToReactangle(center, rectangleMin, rectangleMax), center, radius);
     }
 
     public static bool SphereToCuboid(Vector3 center, float radius, Vector3 rectangleMin, Vector3 rectangleMax)
     {
-        return PointToSphere(GetNearstToReactangle(center, rectangleMin, rectangleMax), center, radius);
+        return PointToSphere(Utills.GetNearstToReactangle(center, rectangleMin, rectangleMax), center, radius);
     }
 
     public static bool PointOnLine(Vector3 a, Vector3 start, Vector3 end)
@@ -153,19 +154,14 @@ public static class Collisions
     {
         var ab = endA - startA;
         var cd = endB - startB;
-        var abcdCross = Cross(ab, cd);
+        var abcdCross = Utills.Cross(ab, cd);
 
         var ac = startB - startA;
 
-        var uA = Cross(cd, ac) / abcdCross;
-        var uB = Cross(ab, ac) / abcdCross;
+        var uA = Utills.Cross(cd, ac) / abcdCross;
+        var uB = Utills.Cross(ab, ac) / abcdCross;
 
         return uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1;
-
-        float Cross(Vector2 a, Vector2 b)
-        {
-            return a.x * b.y - a.y * b.x;
-        }
     }
 
     public static bool LineToRectangle(Vector2 start, Vector2 end, Vector2 min, Vector2 max)
@@ -207,10 +203,10 @@ public static class Collisions
     {
         var denominator = Vector3.Dot(normal, end - start);
 
-        if (denominator == 0)
+        if (denominator < EPSILON && denominator > -EPSILON)
         {
             var temp = start - planePoint;
-            return temp.x < EPSILON || temp.y < EPSILON || temp.z < EPSILON;
+            return temp.x < EPSILON && temp.x > -EPSILON || temp.y < EPSILON && temp.y > -EPSILON || temp.z < EPSILON && temp.z > -EPSILON;
         }
 
         var u = Vector3.Dot(normal, planePoint - start) / denominator;
@@ -227,7 +223,7 @@ public static class Collisions
         {
             var temp = start - diskCenter;
 
-            if (temp.x < EPSILON)
+            if (temp.x < EPSILON && temp.x > -EPSILON)
             {
                 var start2 = new Vector2(start.y, start.z);
                 var end2 = new Vector2(end.y, end.z);
@@ -236,7 +232,7 @@ public static class Collisions
 
                 return CircleToLine(circleCenter, radius, start2, end2);
             }
-            else if (temp.y < EPSILON)
+            else if (temp.y < EPSILON && temp.y > -EPSILON)
             {
                 var start2 = new Vector2(start.z, start.z);
                 var end2 = new Vector2(end.x, end.z);
@@ -245,7 +241,7 @@ public static class Collisions
 
                 return CircleToLine(circleCenter, radius, start2, end2);
             }
-            else if (temp.z < EPSILON)
+            else if (temp.z < EPSILON && temp.z > -EPSILON)
             {
                 var start2 = new Vector2(start.x, start.y);
                 var end2 = new Vector2(end.x, end.y);
@@ -277,10 +273,10 @@ public static class Collisions
         float txmin = (min.x - start.x) / direction.x;
         float txmax = (max.x - start.x) / direction.x;
 
-        if (txmin > txmax) 
+        if (txmin > txmax)
         {
             Swap(ref txmin, ref txmax);
-        } 
+        }
 
         float tymin = (min.y - start.y) / direction.y;
         float tymax = (max.y - start.y) / direction.y;
@@ -332,7 +328,7 @@ public static class Collisions
         for (int i = 0; i < polygon.Length; i++)
         {
             var current = polygon[i];
-            var next = Next(polygon, i);
+            var next = polygon.Next(i);
             //ќпредел€ем находитс€ ли искома€ точка, между двум€ точками полигона по оси Y
             //ѕереключаем состо€ни€ колизии если точка находитс€ с одной стороны по X
             //¬ случае, если точка будет находитс€ за полигоном, то другой полигон, тоже переключит состо€ние колизии
@@ -353,17 +349,33 @@ public static class Collisions
         var ab = triangle[1] - triangle[0];
         var ac = triangle[2] - triangle[0];
 
-        var area = Mathf.Abs(ab.x * ac.y - ab.y * ac.x);
+        var area = Mathf.Abs(Utills.Cross(ab, ac));
 
         var ap = point - triangle[0];
         var bp = point - triangle[1];
         var cp = point - triangle[2];
 
+        var area1 = Mathf.Abs(Utills.Cross(ap, cp));
+        var area2 = Mathf.Abs(Utills.Cross(ap, bp));
+        var area3 = Mathf.Abs(Utills.Cross(cp, bp));
 
-        //ћб завести cross ?
-        var area1 = Mathf.Abs(ap.x * cp.y - ap.y * cp.x);
-        var area2 = Mathf.Abs(ap.x * bp.y - ap.y * bp.y);
-        var area3 = Mathf.Abs(cp.x * bp.y - cp.y * bp.x);
+        return area1 + area2 + area3 == area;
+    }
+
+    public static bool PointToTriangle(Vector2 point, Vector2 a, Vector2 b, Vector2 c)
+    {
+        var ab = b - a;
+        var ac = c - a;
+
+        var area =  Mathf.Abs(Utills.Cross(ab,ac));
+
+        var ap = point - a;
+        var bp = point - b;
+        var cp = point - c;
+
+        var area1 = Mathf.Abs(Utills.Cross(ap,cp));
+        var area2 = Mathf.Abs(Utills.Cross(ap, bp));
+        var area3 = Mathf.Abs(Utills.Cross(cp, bp));
 
         return area1 + area2 + area3 == area;
     }
@@ -373,7 +385,7 @@ public static class Collisions
         for (int i = 0; i < polygonA.Length; i++)
         {
             var current = polygonA[i];
-            var next = Next(polygonA, i);
+            var next = polygonA.Next(i);
 
             if (LineToPolygon(current, next, polygonB))
             {
@@ -389,7 +401,7 @@ public static class Collisions
         for (int i = 0; i < polygon.Length; i++)
         {
             var current = polygon[i];
-            var next = Next(polygon, i);
+            var next = polygon.Next(i);
 
             if (LineToLine(start, end, current, next))
             {
@@ -405,7 +417,7 @@ public static class Collisions
         for (int i = 0; i < polygon.Length; i++)
         {
             var current = polygon[i];
-            var next = Next(polygon, i);
+            var next = polygon.Next(i);
 
             if (CircleToLine(center, radius, current, next))
             {
@@ -421,7 +433,7 @@ public static class Collisions
         for (int i = 0; i < polygon.Length; i++)
         {
             var current = polygon[i];
-            var next = Next(polygon, i);
+            var next = polygon.Next(i);
 
             if (LineToRectangle(current, next, min, max))
             {
@@ -445,13 +457,13 @@ public static class Collisions
         for (int i = 0; i < polygon.Length; i++)
         {
             var current = polygon[i];
-            var next = Next(polygon, i);
+            var next = polygon.Next(i);
 
             var edge = next - current;
             axis = new Vector2(-edge.y, edge.x);
 
-            ProjectVertices(polygon, axis, out minA, out maxA);
-            ProjectCircle(center, radius, axis, out minB, out maxB);
+            Utills.ProjectVertices(polygon, axis, out minA, out maxA);
+            Utills.ProjectCircle(center, radius, axis, out minB, out maxB);
 
             if (minA >= maxB || minB >= maxA)
             {
@@ -467,12 +479,12 @@ public static class Collisions
             }
         }
 
-        var closestIndex = FindClosestPointOnPolygon(polygon, center);
+        var closestIndex = Utills.FindClosestPointOnPolygon(polygon, center);
         var closestPoint = polygon[closestIndex];
         axis = closestPoint - center;
 
-        ProjectVertices(polygon, axis, out minA, out maxA);
-        ProjectCircle(center, radius, axis, out minB, out maxB);
+        Utills.ProjectVertices(polygon, axis, out minA, out maxA);
+        Utills.ProjectCircle(center, radius, axis, out minB, out maxB);
 
         if (minA >= maxB || minB >= maxA)
         {
@@ -504,64 +516,6 @@ public static class Collisions
         return true;
     }
 
-    private static int FindClosestPointOnPolygon(Vector2[] polygon, Vector2 point)
-    {
-        var result = -1;
-        var distance = float.MaxValue;
-
-        for (int i = 0; i < polygon.Length; i++)
-        {
-            var tempDist = Vector2.Distance(polygon[i], point);
-            if (tempDist < distance)
-            {
-                result = i;
-                distance = tempDist;
-            }
-        }
-
-        return result;
-    }
-
-    private static Vector2 Next(Vector2[] array, int index)
-    {
-        return array[(index + 1) % array.Length];
-    }
-
-    private static void ProjectVertices(Vector2[] vertices, Vector2 axis,
-                                        out float min, out float max)
-    {
-        min = float.MaxValue;
-        max = float.MinValue;
-
-        for (int i = 0; i < vertices.Length; i++)
-        {
-            var temp = Vector2.Dot(vertices[i], axis);
-            if (min > temp)
-            {
-                min = temp;
-            }
-
-            if (max < temp)
-            {
-                max = temp;
-            }
-        }
-    }
-
-    private static void ProjectCircle(Vector2 center, float radius, Vector2 axis,
-                                        out float min, out float max)
-    {
-        var dir = axis.normalized;
-        min = Vector2.Dot(center - dir * radius, axis);
-        max = Vector2.Dot(center + dir * radius, axis);
-
-        if (min > max)
-        {
-            var t = max;
-            max = min;
-            min = t;
-        }
-    }
 
     //Lengyel_E_-_Mathematics_for_3D_Game_Programmin
     //public static bool LineToLine2(Vector3 startA, Vector3 endA, Vector3 startB, Vector3 endB)
@@ -591,88 +545,4 @@ public static class Collisions
 
     //    return false;
     //}
-
-
-
-
-
-
-    public static Vector2 GetNearstToReactangle(Vector2 point, Vector2 rectangleMin, Vector2 rectangleMax)
-    {
-        var nearest = point;
-
-        if (point.x < rectangleMin.x)
-        {
-            nearest.x = rectangleMin.x;
-        }
-        else if (point.x > rectangleMax.x)
-        {
-            nearest.x = rectangleMax.x;
-        }
-
-        if (point.y < rectangleMin.y)
-        {
-            nearest.y = rectangleMin.y;
-        }
-        else if (point.x > rectangleMax.y)
-        {
-            nearest.y = rectangleMax.y;
-        }
-
-        return nearest;
-    }
-
-    public static Vector2 GetNearstToReactangle(Vector3 point, Vector3 rectangleMin, Vector3 rectangleMax)
-    {
-        var nearest = point;
-
-        if (point.x < rectangleMin.x)
-        {
-            nearest.x = rectangleMin.x;
-        }
-        else if (point.x > rectangleMax.x)
-        {
-            nearest.x = rectangleMax.x;
-        }
-
-        if (point.y < rectangleMin.y)
-        {
-            nearest.y = rectangleMin.y;
-        }
-        else if (point.x > rectangleMax.y)
-        {
-            nearest.y = rectangleMax.y;
-        }
-
-        if (point.z < rectangleMin.z)
-        {
-            nearest.z = rectangleMin.z;
-        }
-        else if (point.z > rectangleMax.z)
-        {
-            nearest.z = rectangleMax.z;
-        }
-
-        return nearest;
-    }
-
-    public static Vector2 GetNearstToLine(Vector2 point, Vector2 start, Vector2 end)
-    {
-        var ac = point - start;
-        var ab = end - start;
-        var dotProduct = Vector2.Dot(ac, ab);
-        var distance = Mathf.Clamp(dotProduct / ab.sqrMagnitude, 0, 1);
-
-        return start + ab * distance;
-    }
-
-    public static Vector3 GetNearstToLine(Vector3 point, Vector3 start, Vector3 end)
-    {
-        var ac = point - start;
-        var ab = end - start;
-        var dotProduct = Vector3.Dot(ac, ab);
-        var distance = Mathf.Clamp(dotProduct / ab.sqrMagnitude, 0, 1);
-
-        return start + ab * distance;
-    }
 }

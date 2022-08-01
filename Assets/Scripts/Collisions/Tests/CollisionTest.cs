@@ -41,4 +41,11 @@ public class CollisionTest
         Vector3 endB = new Vector3(0, 20, 10);
         Assert.IsTrue(Collisions.LineToLine(startA, endA, startB, endB));
     }
+
+    [Test]
+    public void ConvexAlghorithmm()
+    {
+        var list = new List<Vector2>() { new Vector2(0, 0), new Vector2(1, 10), new Vector2(10, 1), new Vector2(5, 10), new Vector2(10, 5), new Vector2(7, 7), new Vector2(10, 10) };
+        Algorithms.GetConvexHull(list).ForEach(x=>Debug.Log(x));
+    }
 }

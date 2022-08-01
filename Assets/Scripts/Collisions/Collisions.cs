@@ -1,6 +1,8 @@
 
 using System.Linq;
 
+using UnityEditor.Rendering;
+
 using UnityEngine;
 
 public static class Collisions
@@ -128,9 +130,9 @@ public static class Collisions
         //return PointToCircle(GetNearstToLine(center, start, end), center, radius);
     }
 
-    public static bool CircleToLine(Vector3 center, float radius, Vector3 start, Vector3 end)
+    public static bool SphereToLine(Vector3 center, float radius, Vector3 start, Vector3 end)
     {
-        if (PointToCircle(start, center, radius) || PointToCircle(end, center, radius))
+        if (PointToSphere(start, center, radius) || PointToSphere(end, center, radius))
         {
             return true;
         }
@@ -143,8 +145,8 @@ public static class Collisions
         if (distance >= 1 && distance <= 0)
             return false;
 
-        return PointToCircle(start + ab * distance, center, radius);
-        //return PointToCircle(GetNearstToLine(center, start, end), center, radius);
+        return PointToSphere(start + ab * distance, center, radius);
+        //return PointToSphere(GetNearstToLine(center, start, end), center, radius);
     }
 
     public static bool LineToLine(Vector2 startA, Vector2 endA, Vector2 startB, Vector2 endB)
@@ -164,6 +166,17 @@ public static class Collisions
         {
             return a.x * b.y - a.y * b.x;
         }
+    }
+
+    public static bool LineToRectangle(Vector2 start, Vector2 end, Vector2 min, Vector2 max)
+    {
+        var point2 = new Vector2(min.x, max.y);
+        var point4 = new Vector2(max.x, min.y);
+
+        return LineToLine(start, end, min, point2) ||
+            LineToLine(start, end, point2, max) ||
+            LineToLine(start, end, point4, max) ||
+            LineToLine(start, end, min, point4);
     }
 
     //http://paulbourke.net/geometry/pointlineplane/
@@ -188,6 +201,129 @@ public static class Collisions
         var muB = (cacdDot + muA * cdabDot) / cdDot;
 
         return (startA - startB + muA * (endA - startA) - muB * (endB - startB)).magnitude <= EPSILON;
+    }
+
+    public static bool LineToPlane(Vector3 start, Vector3 end, Vector3 normal, Vector3 planePoint)
+    {
+        var denominator = Vector3.Dot(normal, end - start);
+
+        if (denominator == 0)
+        {
+            var temp = start - planePoint;
+            return temp.x < EPSILON || temp.y < EPSILON || temp.z < EPSILON;
+        }
+
+        var u = Vector3.Dot(normal, planePoint - start) / denominator;
+        return u >= 0 && u <= 1;
+    }
+
+
+    public static bool LineToDisk(Vector3 start, Vector3 end, Vector3 normal, Vector3 diskCenter, float radius)
+    {
+        var direction = end - start;
+        var denominator = Vector3.Dot(normal, direction);
+
+        if (denominator == 0)
+        {
+            var temp = start - diskCenter;
+
+            if (temp.x < EPSILON)
+            {
+                var start2 = new Vector2(start.y, start.z);
+                var end2 = new Vector2(end.y, end.z);
+
+                var circleCenter = new Vector2(diskCenter.y, diskCenter.z);
+
+                return CircleToLine(circleCenter, radius, start2, end2);
+            }
+            else if (temp.y < EPSILON)
+            {
+                var start2 = new Vector2(start.z, start.z);
+                var end2 = new Vector2(end.x, end.z);
+
+                var circleCenter = new Vector2(diskCenter.x, diskCenter.z);
+
+                return CircleToLine(circleCenter, radius, start2, end2);
+            }
+            else if (temp.z < EPSILON)
+            {
+                var start2 = new Vector2(start.x, start.y);
+                var end2 = new Vector2(end.x, end.y);
+
+                var circleCenter = new Vector2(diskCenter.x, diskCenter.y);
+
+                return CircleToLine(circleCenter, radius, start2, end2);
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        var u = Vector3.Dot(normal, diskCenter - start) / denominator;
+
+        if (u >= 0 && u <= 1)
+        {
+            var pointInPlane = start + direction * u;
+            var delta = pointInPlane - diskCenter;
+            return (delta.magnitude <= radius);
+        }
+
+        return false;
+    }
+
+    public static bool RayToCuboid(Vector3 start, Vector3 direction, Vector3 min, Vector3 max)
+    {
+        float txmin = (min.x - start.x) / direction.x;
+        float txmax = (max.x - start.x) / direction.x;
+
+        if (txmin > txmax) 
+        {
+            Swap(ref txmin, ref txmax);
+        } 
+
+        float tymin = (min.y - start.y) / direction.y;
+        float tymax = (max.y - start.y) / direction.y;
+
+        if (tymin > tymax)
+        {
+            Swap(ref tymin, ref tymax);
+        }
+
+        if ((txmin > tymax) || (tymin > txmax))
+            return false;
+
+        if (tymin > txmin)
+            txmin = tymin;
+
+        if (tymax < txmax)
+            txmax = tymax;
+
+        float tzmin = (min.z - start.z) / direction.z;
+        float tzmax = (max.z - start.z) / direction.z;
+
+        if (tzmin > tzmax)
+        {
+            Swap(ref tzmin, ref tzmax);
+        }
+
+        if ((txmin > tzmax) || (tzmin > txmax))
+            return false;
+
+        if (tzmin > txmin)
+            txmin = tzmin;
+
+        if (tzmax < txmax)
+            txmax = tzmax;
+
+        return true;
+
+        void Swap(ref float min, ref float max)
+        {
+            var temp = max;
+            max = min;
+            min = temp;
+        }
     }
 
     public static bool PointToPolygon(Vector2 point, Vector2[] polygon)
@@ -217,7 +353,7 @@ public static class Collisions
         var ab = triangle[1] - triangle[0];
         var ac = triangle[2] - triangle[0];
 
-        var area =  Mathf.Abs(ab.x * ac.y - ab.y * ac.x);
+        var area = Mathf.Abs(ab.x * ac.y - ab.y * ac.x);
 
         var ap = point - triangle[0];
         var bp = point - triangle[1];
@@ -456,35 +592,9 @@ public static class Collisions
     //    return false;
     //}
 
-    public static bool LineToRectangle(Vector2 start, Vector2 end, Vector2 min, Vector2 max)
-    {
-        var point2 = new Vector2(min.x, max.y);
-        var point4 = new Vector2(max.x, min.y);
 
-        return LineToLine(start, end, min, point2) ||
-            LineToLine(start, end, point2, max) ||
-            LineToLine(start, end, point4, max) ||
-            LineToLine(start, end, min, point4);
-    }
 
-    //public static bool LineToCuboid(Vector3 start, Vector3 end, Vector3 min, Vector3 max)
-    //{
 
-    //}
-
-    public static bool LineToPlane(Vector3 start, Vector3 end, Vector3 normal, Vector3 planePoint)
-    {
-        var denominator = Vector3.Dot(normal, end - start);
-
-        if (denominator == 0)
-        {
-            var temp = start - planePoint;
-            return temp.x < EPSILON || temp.y < EPSILON || temp.z < EPSILON;
-        }
-
-        var u = Vector3.Dot(normal, planePoint - start) / denominator;
-        return u >= 0 && u <= 1;
-    }
 
 
     public static Vector2 GetNearstToReactangle(Vector2 point, Vector2 rectangleMin, Vector2 rectangleMax)

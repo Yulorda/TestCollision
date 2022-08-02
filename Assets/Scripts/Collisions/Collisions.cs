@@ -1,23 +1,18 @@
-
 using System.Linq;
-
-using UnityEditor.Rendering;
 
 using UnityEngine;
 using UnityEngine.Diagnostics;
 
 public static class Collisions
 {
-    public const float EPSILON = 1e-10f;
-
     public static bool PointToPoint(Vector3 a, Vector3 b)
     {
-        return Vector3.SqrMagnitude(a - b) <= EPSILON;
+        return Vector3.SqrMagnitude(a - b) <= Utills.EPSILON;
     }
 
     public static bool PointToPoint(Vector2 a, Vector2 b)
     {
-        return Vector2.SqrMagnitude(a - b) <= EPSILON;
+        return Vector2.SqrMagnitude(a - b) <= Utills.EPSILON;
     }
 
     public static bool PointToCircle(Vector2 a, Vector2 center, float radius)
@@ -96,7 +91,7 @@ public static class Collisions
         var abLength = ab.magnitude;
         var accbLength = ac.magnitude + cb.magnitude;
 
-        return accbLength >= abLength - EPSILON && accbLength <= abLength + EPSILON;
+        return accbLength >= abLength - Utills.EPSILON && accbLength <= abLength + Utills.EPSILON;
     }
 
     public static bool PointOnLine(Vector2 a, Vector2 start, Vector2 end)
@@ -108,7 +103,7 @@ public static class Collisions
         var abLength = ab.magnitude;
         var accbLength = ac.magnitude + cb.magnitude;
 
-        return accbLength >= abLength - EPSILON && accbLength <= abLength + EPSILON;
+        return accbLength >= abLength - Utills.EPSILON && accbLength <= abLength + Utills.EPSILON;
     }
 
     public static bool CircleToLine(Vector2 center, float radius, Vector2 start, Vector2 end)
@@ -196,17 +191,17 @@ public static class Collisions
         var muA = (cacdDot * cdabDot - caabDot * cdDot) / temp;
         var muB = (cacdDot + muA * cdabDot) / cdDot;
 
-        return (startA - startB + muA * (endA - startA) - muB * (endB - startB)).magnitude <= EPSILON;
+        return (startA - startB + muA * (endA - startA) - muB * (endB - startB)).magnitude <= Utills.EPSILON;
     }
 
     public static bool LineToPlane(Vector3 start, Vector3 end, Vector3 normal, Vector3 planePoint)
     {
         var denominator = Vector3.Dot(normal, end - start);
 
-        if (denominator < EPSILON && denominator > -EPSILON)
+        if (denominator < Utills.EPSILON && denominator > -Utills.EPSILON)
         {
             var temp = start - planePoint;
-            return temp.x < EPSILON && temp.x > -EPSILON || temp.y < EPSILON && temp.y > -EPSILON || temp.z < EPSILON && temp.z > -EPSILON;
+            return temp.x < Utills.EPSILON && temp.x > -Utills.EPSILON || temp.y < Utills.EPSILON && temp.y > -Utills.EPSILON || temp.z < Utills.EPSILON && temp.z > -Utills.EPSILON;
         }
 
         var u = Vector3.Dot(normal, planePoint - start) / denominator;
@@ -223,7 +218,7 @@ public static class Collisions
         {
             var temp = start - diskCenter;
 
-            if (temp.x < EPSILON && temp.x > -EPSILON)
+            if (temp.x < Utills.EPSILON && temp.x > -Utills.EPSILON)
             {
                 var start2 = new Vector2(start.y, start.z);
                 var end2 = new Vector2(end.y, end.z);
@@ -232,7 +227,7 @@ public static class Collisions
 
                 return CircleToLine(circleCenter, radius, start2, end2);
             }
-            else if (temp.y < EPSILON && temp.y > -EPSILON)
+            else if (temp.y < Utills.EPSILON && temp.y > -Utills.EPSILON)
             {
                 var start2 = new Vector2(start.z, start.z);
                 var end2 = new Vector2(end.x, end.z);
@@ -241,7 +236,7 @@ public static class Collisions
 
                 return CircleToLine(circleCenter, radius, start2, end2);
             }
-            else if (temp.z < EPSILON && temp.z > -EPSILON)
+            else if (temp.z < Utills.EPSILON && temp.z > -Utills.EPSILON)
             {
                 var start2 = new Vector2(start.x, start.y);
                 var end2 = new Vector2(end.x, end.y);
@@ -367,13 +362,13 @@ public static class Collisions
         var ab = b - a;
         var ac = c - a;
 
-        var area =  Mathf.Abs(Utills.Cross(ab,ac));
+        var area = Mathf.Abs(Utills.Cross(ab, ac));
 
         var ap = point - a;
         var bp = point - b;
         var cp = point - c;
 
-        var area1 = Mathf.Abs(Utills.Cross(ap,cp));
+        var area1 = Mathf.Abs(Utills.Cross(ap, cp));
         var area2 = Mathf.Abs(Utills.Cross(ap, bp));
         var area3 = Mathf.Abs(Utills.Cross(cp, bp));
 
@@ -446,6 +441,7 @@ public static class Collisions
 
 
     //https://www.youtube.com/watch?v=vWs33LVrs74&ab_channel=Two-BitCoding
+    //—уд€ по всему по принципу SAT
     public static bool CircleToConvexPolygon2(Vector2 center, float radius, Vector2[] polygon)
     {
         var normal = Vector2.zero;
@@ -493,8 +489,6 @@ public static class Collisions
 
         return true;
 
-        //¬ примере он искал дельту дл€ выталкивани€, € пока таким не увлекаюсь
-
         axisDepth = Mathf.Min(maxB - minA, maxA - minB);
 
         if (axisDepth < depth)
@@ -516,6 +510,84 @@ public static class Collisions
         return true;
     }
 
+    //SAT The Separating Axis Theorem
+    //Ќаверное стоит передвать в качестве параметров форму как интерфейс, у которого есть функций получени€ проекции на ось
+    //» функции получени€ осей из формы
+    //игнорируетс€ Containment (когда фигура внутри другой фигуры)
+    public static bool SATPolygonToPolygon(Vector2[] polygonA, Vector2[] polygonB)
+    {
+        return SatPolygonPart(polygonA, polygonB) && SatPolygonPart(polygonB, polygonA);
+
+        bool SatPolygonPart(Vector2[] polygonA, Vector2[] polygonB)
+        {
+            //ћножественное число axis ))) 
+            var axes = new Vector2[polygonA.Length];
+            for (int i = 0; i < polygonA.Length; i++)
+            {
+                var current = polygonA[i];
+                var next = polygonA.Next(i);
+
+                var edge = next - current;
+                axes[i] = new Vector2(-edge.y, edge.x);
+            }
+
+            for (int i = 0; i < axes.Length; i++)
+            {
+                if (!CheckProjectionOverlap(axes[i], polygonA, polygonB))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
+    private static bool CheckProjectionOverlap(Vector2 axis, Vector2[] polygonA, Vector2[] polygonB)
+    {
+        Utills.ProjectVertices(polygonA, axis, out var minA, out var maxA);
+        Utills.ProjectVertices(polygonB, axis, out var minB, out var maxB);
+
+        return minA >= maxB || minB >= maxA;
+    }
+
+    //ѕри изучении Sat наткнулс€ на такой пример, ну по описаню SAT тут нету осей и нету проекций.
+    //ѕровер€ет наход€тс€ ли все точки одного полигона с одной стороны отностельно каждой стороны другого полигона
+    //—разу можно заметить что, если полигон находитс€ внутри другого полигона, то такой алгоритм не отработает.
+    //https://github.com/youlanhai/learn-physics/blob/master/Assets/02-sat/SAT.cs
+    public static bool PolygonCollision(Vector2[] polygonA, Vector2[] polygonB)
+    {
+        return PolygonCollisionPart(polygonA, polygonB) && PolygonCollisionPart(polygonB, polygonA);
+    }
+
+    private static bool PolygonCollisionPart(Vector2[] polygonA, Vector2[] polygonB)
+    {
+        var side = Utills.Side(polygonA[0], polygonA[1], polygonA[2]);
+        for (int i = 0; i < polygonA.Length; i++)
+        {
+            var current = polygonA[i];
+            var next = polygonA.Next(i);
+
+            if (IsDiferentSide(side, current, next, polygonB))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool IsDiferentSide(int currentSide, Vector2 start, Vector2 end, Vector2[] polygon)
+    {
+        for (int j = 0; j < polygon.Length; j++)
+        {
+            var tempSide = Utills.Side(start, end, polygon[j]);
+            if (tempSide * currentSide > 0)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
     //Lengyel_E_-_Mathematics_for_3D_Game_Programmin
     //public static bool LineToLine2(Vector3 startA, Vector3 endA, Vector3 startB, Vector3 endB)

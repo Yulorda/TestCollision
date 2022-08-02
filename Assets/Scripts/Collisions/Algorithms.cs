@@ -6,8 +6,6 @@ using UnityEngine;
 
 public static class Algorithms
 {
-    public const float EPSILON = 1e-10f;
-
     public static List<Vector2> GetConvexHull(List<Vector2> points)
     {
         if (points.Count <= 3)
@@ -20,7 +18,7 @@ public static class Algorithms
 
         for (int i = 1; i < points.Count; i++)
         {
-            if (points[i].x < startVertex.x || Mathf.Abs(points[i].x - startVertex.x) < EPSILON && points[i].y < startVertex.y)
+            if (points[i].x < startVertex.x || Mathf.Abs(points[i].x - startVertex.x) < Utills.EPSILON && points[i].y < startVertex.y)
             {
                 startVertex = points[i];
             }
@@ -48,7 +46,7 @@ public static class Algorithms
 
                 float relation = Vector2.Dot(c, nextPoint - currentPoint);
 
-                if (relation < EPSILON && relation > -EPSILON)
+                if (relation < Utills.EPSILON && relation > -Utills.EPSILON)
                 {
                     colinearPoints.Add(points[i]);
                 }

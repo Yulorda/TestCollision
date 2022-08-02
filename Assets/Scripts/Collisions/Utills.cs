@@ -5,6 +5,7 @@ using UnityEngine;
 
 public static class Utills
 {
+    public const float EPSILON = 1e-10f;
     public static float PolygonArea(Vector2[] polygon)
     {
         var area = 0f;
@@ -17,6 +18,14 @@ public static class Utills
         }
 
         return area / 2f;
+    }
+
+    public static int Side(Vector2 a, Vector2 b, Vector2 c)
+    {
+        var ab = b - a;
+        var ac = c - a;
+        var cross = Cross(ab, ac);
+        return cross > EPSILON ? 1 : (cross < -EPSILON ? -1 : 0);
     }
 
     public static float Cross(this Vector2 lhs, Vector2 rhs)
@@ -170,7 +179,7 @@ public static class Utills
     public static T Previous<T>(this T[] array, int index)
     {
         index--;
-        while(index<0)
+        while (index < 0)
         {
             index = array.Length + index;
         }

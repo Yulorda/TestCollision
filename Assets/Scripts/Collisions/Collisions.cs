@@ -1,4 +1,8 @@
+using Codice.Client.BaseCommands;
+
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 using UnityEngine;
 using UnityEngine.Diagnostics;
@@ -339,6 +343,28 @@ public static class Collisions
         return collision;
     }
 
+    public static bool PointToPolygon(Vector2 point, List<Vector2> polygon)
+    {
+        var collision = false;
+        for (int i = 0; i < polygon.Count; i++)
+        {
+            var current = polygon[i];
+            var next = polygon.Next(i);
+            //ќпредел€ем находитс€ ли искома€ точка, между двум€ точками полигона по оси Y
+            //ѕереключаем состо€ни€ колизии если точка находитс€ с одной стороны по X
+            //¬ случае, если точка будет находитс€ за полигоном, то другой полигон, тоже переключит состо€ние колизии
+            //ј если будет находитс€ с другой стороны, то колизи€ отработает 1 раз.
+            //¬ сложных случа€х, будет происходить подсчет количества пересечений , если он будет четный, то коллизии нет.
+            //                                                              a + dir * cnpr(p)
+            if (((current.y > point.y) != (next.y > point.y)) && (point.x < current.x + (next.x - current.x) * (point.y - current.y) / (next.y - current.y)))
+            {
+                collision = !collision;
+            }
+        }
+
+        return collision;
+    }
+
     public static bool PointToTriangle(Vector2 point, Vector2[] triangle)
     {
         var ab = triangle[1] - triangle[0];
@@ -509,6 +535,129 @@ public static class Collisions
 
         return true;
     }
+
+    public static bool GJKCollision(Vector2[] polygonA, Vector2[] polygonB)
+    {
+        var centerA = Utills.GetPolygonCenter(polygonA);
+        var centerB = Utills.GetPolygonCenter(polygonB);
+        var direction = centerB - centerA;
+
+        var simplex = new List<Vector2>();
+        simplex.Add(GetMinkowskiDifference(polygonA, polygonB, direction));
+
+        direction = -direction;
+
+        var newPoint = GetMinkowskiDifference(polygonA, polygonB, direction);
+        simplex.Add(newPoint);
+
+        if (direction.sqrMagnitude < Utills.EPSILON)
+        {
+            return true;
+        }
+
+        if (Vector2.Dot(newPoint, direction) < Utills.EPSILON)
+        {
+            return false;
+        }
+
+        if(Collisions.PointOnLine(Vector2.zero, simplex[0], simplex[1]))
+        {
+            return true;
+        }
+
+        direction = FindNewDirection(simplex);
+
+        for(int i = 0; i<10; i++)
+        {
+            newPoint = GetMinkowskiDifference(polygonA, polygonB, direction);
+            simplex.Add(newPoint);
+
+            if (direction.sqrMagnitude < Utills.EPSILON)
+            {
+                return true;
+            }
+
+            if (Vector2.Dot(newPoint, direction) < Utills.EPSILON)
+            {
+                return false;
+            }
+
+            if(CheckContainsOrigin(simplex))
+            {
+                return true;
+            }
+            else
+            {
+                direction = FindNewDirection(simplex);
+            }
+        }
+
+        return false;
+
+        Vector2 FindNewDirection(List<Vector2> simplex)
+        {
+            if(simplex.Count == 2)
+            {
+                Vector2 crossPoint = GetPerpendicularToOrigin(simplex[0], simplex[1]);
+                return Vector2.zero - crossPoint;
+            }
+            else
+            {
+                Vector2 perCA = GetPerpendicularToOrigin(simplex[2], simplex[0]);
+                Vector2 perOnCB = GetPerpendicularToOrigin(simplex[2], simplex[1]);
+
+                if (perCA.sqrMagnitude < perOnCB.sqrMagnitude)
+                {
+                    simplex.RemoveAt(1);
+                    return Vector2.zero - perCA;
+                }
+                else
+                {
+                    simplex.RemoveAt(0);
+                    return Vector2.zero - perOnCB;
+                }
+            }
+
+            Vector2 GetPerpendicularToOrigin(Vector2 a, Vector2 b)
+            {
+                Vector2 ab = b - a;
+                Vector2 ao = Vector2.zero - a;
+
+                float projection = Vector2.Dot(ab, ao) / ab.sqrMagnitude;
+                return a + ab * projection;
+            }
+        }
+
+        bool CheckContainsOrigin(List<Vector2> simplex)
+        {
+            return Collisions.PointToPolygon(Vector2.zero, simplex);
+        }
+    }
+
+    private static Vector2 GetMinkowskiDifference(Vector2[] polygonA, Vector2[] polygonB, Vector2 direction)
+    {
+        var pA = polygonA.GetPointInDirection(direction);
+        var pB = polygonB.GetPointInDirection(-direction);
+        return pA - pB;
+    }
+
+    private static Vector2 GetPointInDirection(this Vector2[] polygon, Vector2 direction)
+    {
+        var result = Vector3.zero;
+        var tempDot = float.MinValue;
+        for (int i = 0; i < polygon.Length; i++)
+        {
+            var dot = Vector2.Dot(direction, polygon[i]);
+            if (dot > tempDot)
+            {
+                tempDot = dot;
+                result = polygon[i];
+            }
+        }
+
+        return result;
+    }
+
 
     //SAT The Separating Axis Theorem
     //Ќаверное стоит передвать в качестве параметров форму как интерфейс, у которого есть функций получени€ проекции на ось

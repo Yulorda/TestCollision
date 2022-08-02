@@ -20,6 +20,17 @@ public static class Utills
         return area / 2f;
     }
 
+    public static Vector2 GetPolygonCenter(Vector2[] polygon)
+    {
+        var result = Vector2.zero;
+        for(int i = 0; i< polygon.Length; i++)
+        {
+            result += polygon[i];
+        }
+
+        return result / polygon.Length;
+    }
+
     public static int Side(Vector2 a, Vector2 b, Vector2 c)
     {
         var ab = b - a;

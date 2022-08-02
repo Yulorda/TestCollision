@@ -526,7 +526,7 @@ public static class Collisions
         depth /= normal.magnitude;
         normal = normal.normalized;
 
-        var polygonCenter = polygon.Aggregate((x, y) => x + y) / polygon.Length;
+        var polygonCenter = Utills.GetPolygonCenter(polygon);
         var direction = polygonCenter - center;
         if (Vector2.Dot(direction, normal) < 0f)
         {
@@ -547,90 +547,86 @@ public static class Collisions
 
         direction = -direction;
 
-        var newPoint = GetMinkowskiDifference(polygonA, polygonB, direction);
-        simplex.Add(newPoint);
+        var a = GetMinkowskiDifference(polygonA, polygonB, direction);
+        simplex.Add(a);
 
         if (direction.sqrMagnitude < Utills.EPSILON)
         {
             return true;
         }
 
-        if (Vector2.Dot(newPoint, direction) < Utills.EPSILON)
+        if (Vector2.Dot(a, direction) < Utills.EPSILON)
         {
             return false;
         }
 
-        if(Collisions.PointOnLine(Vector2.zero, simplex[0], simplex[1]))
+        if (Collisions.PointOnLine(Vector2.zero, simplex[0], simplex[1]))
         {
             return true;
         }
 
-        direction = FindNewDirection(simplex);
+        direction = TripleProduct(simplex[0] - a, -a, simplex[0] - a);
 
-        for(int i = 0; i<10; i++)
+        for (int i = 0; i < 10; i++)
         {
-            newPoint = GetMinkowskiDifference(polygonA, polygonB, direction);
-            simplex.Add(newPoint);
+            a = GetMinkowskiDifference(polygonA, polygonB, direction);
+            simplex.Add(a);
 
             if (direction.sqrMagnitude < Utills.EPSILON)
             {
                 return true;
             }
 
-            if (Vector2.Dot(newPoint, direction) < Utills.EPSILON)
+            if (Vector2.Dot(a, direction) < Utills.EPSILON)
             {
                 return false;
             }
 
-            if(CheckContainsOrigin(simplex))
+            if (CheckContainsWithChangeDirection())
             {
                 return true;
-            }
-            else
-            {
-                direction = FindNewDirection(simplex);
             }
         }
 
         return false;
 
-        Vector2 FindNewDirection(List<Vector2> simplex)
+        bool CheckContainsWithChangeDirection()
         {
-            if(simplex.Count == 2)
+            var _a = -a;
+            var b = simplex[0];
+            var c = simplex[1];
+
+            var ab = b - a;
+            var ac = c - a;
+
+            var abPerp = TripleProduct(ac, ab, ab);
+            var acPerp = TripleProduct(ab, ac, ac);
+
+            if (Vector2.Dot(abPerp, _a) < 0)
             {
-                Vector2 crossPoint = GetPerpendicularToOrigin(simplex[0], simplex[1]);
-                return Vector2.zero - crossPoint;
+                simplex.RemoveAt(1);
+                direction = abPerp;
             }
             else
             {
-                Vector2 perCA = GetPerpendicularToOrigin(simplex[2], simplex[0]);
-                Vector2 perOnCB = GetPerpendicularToOrigin(simplex[2], simplex[1]);
-
-                if (perCA.sqrMagnitude < perOnCB.sqrMagnitude)
+                if (Vector2.Dot(acPerp, _a) < 0)
                 {
-                    simplex.RemoveAt(1);
-                    return Vector2.zero - perCA;
+                    simplex.RemoveAt(0);
+                    direction = acPerp;
                 }
                 else
                 {
-                    simplex.RemoveAt(0);
-                    return Vector2.zero - perOnCB;
+                    return true;
                 }
             }
 
-            Vector2 GetPerpendicularToOrigin(Vector2 a, Vector2 b)
-            {
-                Vector2 ab = b - a;
-                Vector2 ao = Vector2.zero - a;
-
-                float projection = Vector2.Dot(ab, ao) / ab.sqrMagnitude;
-                return a + ab * projection;
-            }
+            return false;
         }
 
-        bool CheckContainsOrigin(List<Vector2> simplex)
+        //axbxc = b(c*a)-a(c*b)
+        Vector2 TripleProduct(Vector2 a, Vector2 b, Vector2 c)
         {
-            return Collisions.PointToPolygon(Vector2.zero, simplex);
+            return b * Vector2.Dot(c, a) - a * Vector2.Dot(c, b);
         }
     }
 

@@ -267,6 +267,116 @@ public static class Collisions
         return false;
     }
 
+    //Lengyel_E_-_Mathematics_for_3D_Game_Programmin.pdf  Intersection of a Ray and a Triangle
+    //https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/moller-trumbore-ray-triangle-intersection
+    public static bool RayToTriangleMT(Vector3 start, Vector3 direction, Vector3 a, Vector3 b, Vector3 c)
+    {
+        var ab = b - a;
+        var ac = c - a;
+        var pvec = Vector3.Cross(direction, ac);
+        //ab * (direction x ac)
+        float determinant = Vector3.Dot(ab, pvec);
+
+        if (determinant < Utills.EPSILON)
+        {
+            return false;
+        }
+
+        if (Mathf.Abs(determinant) < Utills.EPSILON)
+        {
+            return false;
+        }
+
+        float invDet = 1 / determinant;
+
+        var ao = start - a;
+        var u = Vector3.Dot(ao, pvec) * invDet;
+        
+        if (u < 0 || u > 1)
+        {
+            return false;
+        }
+
+        var qvec = Vector3.Cross(ao,ab);
+        var v = Vector3.Dot(direction,qvec) * invDet;
+        
+        if (v < 0 || u + v > 1)
+        {
+            return false;
+        }
+
+        var t = Vector3.Dot(ac,qvec) * invDet;
+
+        return true;
+    }
+
+    public static bool RayToTriangle(Vector3 start, Vector3 direction, Vector3 a, Vector3 b, Vector3 c)
+    {
+        var ab = b - a;
+        var ac = c - a;
+        var normal = Vector3.Cross(ab, ac);
+
+        var denominator = Vector3.Dot(normal, direction);
+
+        if (denominator < Utills.EPSILON)
+        {
+            //Тут бы еще проверку на то что линия лежит на плоскости
+            return false;
+        }
+
+        float d = Vector3.Dot(normal, a);
+        var t = Vector3.Dot(normal, start) + d / denominator;
+
+        if (t < 0)
+        {
+            return false;
+        }
+
+        var pointOnPlane = start + direction * t;
+
+        var edge = ab;
+        var temp = pointOnPlane - a;
+
+
+        if (IsRightSide())
+        {
+            return false;
+        }
+
+        edge = c - b;
+        temp = pointOnPlane - b;
+
+        if (IsRightSide())
+        {
+            return false;
+        }
+
+        edge = a - c;
+        temp = pointOnPlane - c;
+
+        //v
+        if (IsRightSide())
+        {
+            return false;
+        }
+
+        return true;
+
+        //baricenter coordinats
+        //var nSqrMag = normal.sqrMagnitude;
+        //u/=nSqrMag;
+        //v/=nSqrMag;
+        //w = 1 - u - v;
+
+        //Находим барицентрические координаты, если меньше 0 то точка находится вне контура.
+        //Можно не проверять от 0 до 1, так как мы делаем такую проверку для каждой стороны,
+        //если координата больше 1, то для какой-то стороны будет значение меньше 0
+        bool IsRightSide()
+        {
+            return Vector3.Dot(normal, Vector3.Cross(edge, temp)) < 0;
+        }
+    }
+
     public static bool RayToCuboid(Vector3 start, Vector3 direction, Vector3 min, Vector3 max)
     {
         float txmin = (min.x - start.x) / direction.x;
